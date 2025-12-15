@@ -1,0 +1,7 @@
+python-telegram-bot
+groq
+pygments
+Pillow
+rich
+aiohttp
+requests
