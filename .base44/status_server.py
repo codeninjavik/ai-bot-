@@ -18,11 +18,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("STATUS_PORT", "3000"))
 LOG_FILE = os.environ.get("BOT_LOG_FILE", "/shared/bot.log")
+BOT_SOURCE = os.environ.get("BOT_SOURCE", "/app/chatbot.py")
 BRAND = "Codeninja AI"
+# Cloudflare in front of api.groq.com rejects the default Python user agent
+# (HTTP 403, "error code: 1010"), so every probe identifies itself.
+USER_AGENT = "codeninja-status/1.0"
 
 
 def _get_json(url, headers=None, timeout=8):
-    request = urllib.request.Request(url, headers=headers or {})
+    request = urllib.request.Request(url, headers=headers or {"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.status, json.loads(response.read().decode("utf-8", "replace"))
 
@@ -41,7 +45,7 @@ def check_telegram():
     if not token:
         return {"ok": False, "detail": "TELEGRAM_BOT_TOKEN is not set"}
     try:
-        _, body = _get_json(f"https://api.telegram.org/bot{token}/getMe")
+        _, body = _get_json(f"https://api.telegram.org/bot{token}/getMe", {"User-Agent": USER_AGENT})
         if body.get("ok"):
             username = body.get("result", {}).get("username", "unknown")
             return {"ok": True, "detail": f"Telegram accepted the token for @{username}"}
@@ -52,16 +56,38 @@ def check_telegram():
         return {"ok": False, "detail": f"Telegram unreachable: {error}"}
 
 
+def configured_model():
+    """Read GROQ_MODEL from the bot source so a retired model name is visible here."""
+    try:
+        with open(BOT_SOURCE, "r", errors="replace") as handle:
+            for line in handle:
+                if line.startswith("GROQ_MODEL"):
+                    return line.split("=", 1)[1].strip().strip("\"'")
+    except OSError:
+        pass
+    return None
+
+
 def check_groq():
     key = (os.environ.get("GROQ_API_KEY") or "").strip()
     if not key:
         return {"ok": False, "detail": "GROQ_API_KEY is not set"}
     try:
-        status, body = _get_json(
-            "https://api.groq.com/openai/v1/models", {"Authorization": f"Bearer {key}"}
+        _, body = _get_json(
+            "https://api.groq.com/openai/v1/models",
+            {"Authorization": f"Bearer {key}", "User-Agent": USER_AGENT},
         )
-        count = len(body.get("data") or [])
-        return {"ok": status == 200, "detail": f"Groq accepted the key ({count} models visible)"}
+        available = {entry.get("id") for entry in (body.get("data") or [])}
+        model = configured_model()
+        if not available:
+            return {"ok": False, "detail": "Groq accepted the key but returned no models"}
+        if model and model not in available:
+            return {
+                "ok": False,
+                "detail": f"Groq accepted the key, but the bot's model '{model}' is not available to it",
+            }
+        detail = f"Groq accepted the key ({len(available)} models visible)"
+        return {"ok": True, "detail": f"{detail}; bot model '{model}' is available" if model else detail}
     except urllib.error.HTTPError as error:
         return {"ok": False, "detail": _describe_http_error(error, "Groq")}
     except Exception as error:

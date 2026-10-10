@@ -49,8 +49,9 @@ OWNER_YOUTUBE = "codeninjavik"
 
 # ================= 🧠 AI BRAIN SETUP =================
 client = Groq(api_key=GROQ_API_KEY)
-# Using the stable, fast Llama 3 model
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# Current Groq chat model (llama-3.3-70b-versatile was retired and now returns
+# "model_not_found"; change this line to any model your Groq key can access)
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 # 🔥 SYSTEM PROMPT (Controls Bot Personality & Format)
 SYSTEM_PROMPT = """

@@ -29,6 +29,13 @@ put them under Compose `environment:`, which would permanently outrank a later d
 ## Quirks worth knowing
 * `requirements.txt` is unpinned; `pip install` runs on every container start (warmed by the
   `pip-cache` volume). Pin versions if reproducibility matters.
+* `GROQ_MODEL` was `llama-3.3-70b-versatile`, which Groq has retired — it fails with
+  `model_not_found` and every bot reply becomes a system-error message. It is now
+  `openai/gpt-oss-120b`; change that one line to switch models (see what a key can use via
+  `GET https://api.groq.com/openai/v1/models`). The status page validates the name against the key.
+* `api.groq.com` sits behind Cloudflare, which rejects the default Python `urllib` user agent with
+  HTTP 403 `error code: 1010`. `.base44/status_server.py` therefore sends an explicit `User-Agent`;
+  keep it when adding probes, and don't read a urllib 403 as a bad key (a bad key is 401).
 * Several `/code*` commands render code to PNG via Pygments (`DejaVu Sans Mono` must exist in the
   image — it does in `python:3.12-slim`; a different base image may need fonts installed).
 * `check_subscription` fails open by design: if the bot is not an admin of `@Codeninja_vik`, every

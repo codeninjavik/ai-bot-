@@ -50,6 +50,7 @@ services:
       - PYTHONUNBUFFERED=1
       - STATUS_PORT=3000
       - BOT_LOG_FILE=/shared/bot.log
+      - BOT_SOURCE=/app/chatbot.py
     env_file:
       - /run/base44/app.env
     volumes:
