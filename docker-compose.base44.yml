@@ -1,0 +1,72 @@
+# Base44 dev environment for the Codeninja AI Telegram bot.
+#
+#   bot     — the app itself: a long-polling Telegram process, run from the bind-mounted
+#             source so edits are picked up on restart (`docker compose restart bot`).
+#   status  — the sandbox web entry point on port 3000. The bot has no HTTP endpoints of
+#             its own, so this read-only page reports whether the bot's credentials work
+#             and tails the bot's output (see .base44/status_server.py). Live-reload not
+#             applicable: it only reads state, it does not serve the app.
+#
+# Credentials (TELEGRAM_BOT_TOKEN, GROQ_API_KEY) are provided by Base44 secrets via
+# /run/base44/app.env and are NEVER placed under `environment:` (that would outrank the
+# dashboard value). Run with: docker compose -f docker-compose.base44.yml up -d --build
+
+services:
+  bot:
+    image: python:3.12-slim
+    working_dir: /app
+    command:
+      - bash
+      - -ec
+      - |
+        set -o pipefail
+        pip install --no-input --disable-pip-version-check -q -r requirements.txt
+        python -u chatbot.py 2>&1 | tee -a /shared/bot.log
+    environment:
+      - PIP_CACHE_DIR=/pip-cache
+      - PYTHONUNBUFFERED=1
+      - BOT_LOG_FILE=/shared/bot.log
+    env_file:
+      - /run/base44/app.env
+    volumes:
+      - .:/app
+      - pip-cache:/pip-cache
+      - bot-logs:/shared
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "python", ".base44/check_bot_health.py"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+  status:
+    image: python:3.12-slim
+    working_dir: /app
+    command: ["python", "-u", ".base44/status_server.py"]
+    ports:
+      - "3000:3000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - STATUS_PORT=3000
+      - BOT_LOG_FILE=/shared/bot.log
+    env_file:
+      - /run/base44/app.env
+    volumes:
+      - .:/app
+      - bot-logs:/shared
+    restart: on-failure
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen("http://127.0.0.1:3000/healthz", timeout=4).status == 200 else 1)
+      interval: 15s
+      timeout: 8s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  pip-cache:
+  bot-logs:

@@ -1,3 +1,4 @@
+import os
 import logging
 import asyncio
 from io import BytesIO
@@ -26,11 +27,18 @@ except Exception:
 
 # ================= 🔧 CONFIGURATION =================
 
-# 🔴 1. TELEGRAM BOT TOKEN (From @BotFather)
-TELEGRAM_BOT_TOKEN = "8250223012:AAGcHRkFqM4laaboLhbDVZ_fHdDYAHH_lIk"
+# 🔴 1. TELEGRAM BOT TOKEN (From @BotFather) — supplied via the environment
+TELEGRAM_BOT_TOKEN = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
 
-# 🟢 2. GROQ API KEY
-GROQ_API_KEY = "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"
+# 🟢 2. GROQ API KEY — supplied via the environment
+GROQ_API_KEY = (os.environ.get("GROQ_API_KEY") or "").strip()
+
+if not TELEGRAM_BOT_TOKEN or not GROQ_API_KEY:
+    missing = [name for name, value in (("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN), ("GROQ_API_KEY", GROQ_API_KEY)) if not value]
+    raise SystemExit(
+        "Missing required credentials: " + ", ".join(missing) +
+        ". Set TELEGRAM_BOT_TOKEN (from @BotFather) and GROQ_API_KEY (from https://console.groq.com/keys)."
+    )
 
 # 📢 3. CHANNEL & BRANDING
 REQUIRED_CHANNEL = "@Codeninja_vik"
